@@ -1,0 +1,43 @@
+name: "legal_contracts"
+version: "1.0.0"
+input_type: "url"
+
+extraction:
+  schema_definition:
+    type: "object"
+    properties:
+      parties:
+        type: "array"
+        items:
+          type: "string"
+      date:
+        type: "string"
+        description: "Contract signature date in YYYY-MM-DD"
+      total_amount:
+        type: "number"
+  prompt_template: |
+    Extract the parties, date, and total amount from the following contract text:
+    
+    {text}
+    
+    Output JSON.
+
+qa_rules:
+  - rule_type: "not_null"
+    field_name: "parties"
+  - rule_type: "regex"
+    field_name: "date"
+    params:
+      pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+  - rule_type: "llm_judge"
+    llm_prompt: |
+      Review the text and extracted JSON. Are the parties and total_amount correct?
+      TEXT: {text}
+      JSON: {json}
+      Output JSON with 'passed' (bool) and 'issues' (list of strings).
+
+vectorization:
+  source_field: "extracted_json"
+  template: "Parties: {{parties}}\nDate: {{date}}\nTotal: {{total_amount}}"
+  embedding_model: "BGE-m3"
+  collection_name: "legal_contracts_v1"
