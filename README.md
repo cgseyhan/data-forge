@@ -32,12 +32,13 @@ graph TD
 - **`src/activities/`**: Isolated Temporal activities for scraping, LLM API calls, and DB operations.
 - **`src/workflows/`**: The orchestration layer. `FullPipelineWorkflow` ties everything together.
 
-## ⚙️ Configuration Example
+## ⚙️ Multi-Domain Configuration Examples
 
-DataForge runs on configurations. Here is a simple example for extracting legal contracts:
+DataForge runs on configurations. The engine itself contains zero domain-specific logic. By simply swapping the `PipelineConfig`, you can pivot from parsing legal contracts to extracting e-commerce products or medical research papers.
 
+### Example 1: E-Commerce Product Extraction
 ```yaml
-name: "legal_contracts"
+name: "ecommerce_products"
 version: "1.0.0"
 input_type: "url"
 
@@ -45,27 +46,34 @@ extraction:
   schema_definition:
     type: "object"
     properties:
-      parties:
-        type: "array"
-        items:
-          type: "string"
-      total_amount:
-        type: "number"
-  prompt_template: |
-    Extract the parties and total amount from the following contract text:
-    {text}
-    Output JSON.
+      product_name: { type: "string" }
+      price: { type: "number" }
+      in_stock: { type: "boolean" }
+  prompt_template: "Extract product details from: {text}"
 
 qa_rules:
   - rule_type: "not_null"
-    field_name: "parties"
+    field_name: "product_name"
   - rule_type: "llm_judge"
-    llm_prompt: |
-      Review the text and extracted JSON. Are the parties and total_amount correct?
-      TEXT: {text}
-      JSON: {json}
-      Output JSON with 'passed' (bool) and 'issues' (list of strings).
+    llm_prompt: "Check if the price matches the text. TEXT: {text} JSON: {json}"
 ```
+
+### Example 2: Legal Contracts
+```yaml
+name: "legal_contracts"
+version: "1.0.0"
+input_type: "text"
+
+extraction:
+  schema_definition:
+    type: "object"
+    properties:
+      parties: { type: "array", items: { type: "string" } }
+      total_amount: { type: "number" }
+  prompt_template: "Extract the parties and amount from this contract: {text}"
+```
+
+You can find more examples in the `src/configs/` directory.
 
 ## 🛠️ Getting Started
 

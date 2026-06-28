@@ -1,0 +1,47 @@
+name: "ecommerce_products"
+version: "1.0.0"
+input_type: "url"
+
+extraction:
+  schema_definition:
+    type: "object"
+    properties:
+      product_name: 
+        type: "string"
+        description: "The official name of the product"
+      price: 
+        type: "number"
+      currency: 
+        type: "string"
+      in_stock: 
+        type: "boolean"
+      specifications:
+        type: "object"
+        additionalProperties:
+          type: "string"
+  prompt_template: |
+    You are an e-commerce scraper bot. 
+    Extract the product details from the following HTML text:
+    
+    {text}
+    
+    Ensure you output valid JSON matching the schema.
+
+qa_rules:
+  - rule_type: "not_null"
+    field_name: "product_name"
+  - rule_type: "not_null"
+    field_name: "price"
+  - rule_type: "llm_judge"
+    llm_prompt: |
+      Check if the extracted price and currency exactly match the text. 
+      If the product is out of stock, in_stock should be false.
+      TEXT: {text}
+      JSON: {json}
+      Output JSON with 'passed' (bool) and 'issues' (list of strings).
+
+vectorization:
+  source_field: "extracted_json"
+  template: "Product: {{product_name}}\nSpecs: {{specifications}}"
+  embedding_model: "BGE-m3"
+  collection_name: "products_v1"

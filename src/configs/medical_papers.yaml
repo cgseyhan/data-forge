@@ -1,0 +1,49 @@
+name: "medical_papers"
+version: "1.0.0"
+input_type: "text"
+
+extraction:
+  schema_definition:
+    type: "object"
+    properties:
+      title: 
+        type: "string"
+      authors: 
+        type: "array"
+        items:
+          type: "string"
+      abstract: 
+        type: "string"
+      key_findings:
+        type: "array"
+        items:
+          type: "string"
+      doi:
+        type: "string"
+  prompt_template: |
+    Extract metadata and key findings from the following academic medical paper:
+    
+    {text}
+
+qa_rules:
+  - rule_type: "not_null"
+    field_name: "title"
+  - rule_type: "not_null"
+    field_name: "abstract"
+  - rule_type: "regex"
+    field_name: "doi"
+    params:
+      pattern: "^10\\.\\d{4,9}/[-._;()/:A-Z0-9]+$"
+  - rule_type: "llm_judge"
+    llm_prompt: |
+      Verify that the key_findings are actually present in or strongly implied by the abstract.
+      Do not allow fabricated medical claims.
+      TEXT: {text}
+      JSON: {json}
+      Output JSON with 'passed' (bool) and 'issues' (list of strings).
+
+vectorization:
+  source_field: "extracted_json"
+  template: "Title: {{title}}\nAbstract: {{abstract}}\nFindings: {{key_findings}}"
+  embedding_model: "BGE-m3"
+  collection_name: "medical_research_v1"
