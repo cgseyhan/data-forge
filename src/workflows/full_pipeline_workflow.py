@@ -13,7 +13,7 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn(name="FullPipelineWorkflow")
 class FullPipelineWorkflow:
     @workflow.run
-    async def run(self, url: str, config: PipelineConfig) -> dict:
+    async def run(self, source: str, config: PipelineConfig) -> dict:
         """
         The orchestrator for the entire generic AI data pipeline.
         1. Ingest
@@ -26,21 +26,21 @@ class FullPipelineWorkflow:
         # 1. Ingestion
         ingest_result = await workflow.execute_child_workflow(
             IngestionWorkflow.run,
-            args=[url],
-            id=f"ingest-{url}",
+            args=[source, config.input_type],
+            id=f"ingest-{source[:50]}",
             retry_policy=RetryPolicy(maximum_attempts=3)
         )
         
         raw_text = ingest_result["raw_text"]
         
         if not config.extraction:
-            return {"final_status": "SCRAPED", "url": url}
+            return {"final_status": "INGESTED", "source": source}
             
         # 2. Extraction
         extract_result = await workflow.execute_child_workflow(
             ExtractionWorkflow.run,
             args=[raw_text, config.extraction],
-            id=f"extract-{url}",
+            id=f"extract-{source[:50]}",
             retry_policy=RetryPolicy(maximum_attempts=3)
         )
         
@@ -54,7 +54,7 @@ class FullPipelineWorkflow:
             qa_result = await workflow.execute_child_workflow(
                 QAWorkflow.run,
                 args=[raw_text, extracted_json, config.qa_rules],
-                id=f"qa-{url}",
+                id=f"qa-{source[:50]}",
                 retry_policy=RetryPolicy(maximum_attempts=3)
             )
             
@@ -63,18 +63,18 @@ class FullPipelineWorkflow:
                 return {"final_status": "QA_FAILED", "issues": qa_result.get("issues")}
                 
         if not config.vectorization or qa_status != "QA_PASSED":
-            return {"final_status": qa_status, "url": url}
+            return {"final_status": qa_status, "source": source}
             
         # 4. Vectorization
         vector_result = await workflow.execute_child_workflow(
             VectorWorkflow.run,
             args=[raw_text, extracted_json, config.vectorization],
-            id=f"vector-{url}",
+            id=f"vector-{source[:50]}",
             retry_policy=RetryPolicy(maximum_attempts=3)
         )
         
         return {
             "final_status": "VECTORIZED",
-            "url": url,
+            "source": source,
             "external_vector_id": vector_result["external_vector_id"]
         }

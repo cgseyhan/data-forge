@@ -20,7 +20,7 @@ class VectorizationConfig(BaseModel):
 class PipelineConfig(BaseModel):
     name: str = Field(..., description="Name of the pipeline, e.g., 'legal_contracts'")
     version: str = Field(..., description="Version of the pipeline, e.g., '1.0.0'")
-    input_type: str = Field("url", description="url, text, or file")
+    input_type: str = Field("url", description="url, text, file, pdf_scan, audio, or image")
     
     extraction: Optional[ExtractionConfig] = None
     qa_rules: List[QARule] = Field(default_factory=list)
