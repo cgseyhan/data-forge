@@ -26,3 +26,9 @@ class PipelineConfig(BaseModel):
     qa_rules: List[QARule] = Field(default_factory=list)
     vectorization: Optional[VectorizationConfig] = None
 
+    @classmethod
+    def from_yaml(cls, file_path: str) -> "PipelineConfig":
+        import yaml
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        return cls(**data)

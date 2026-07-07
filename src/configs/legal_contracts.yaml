@@ -1,0 +1,46 @@
+name: "legal_contracts"
+version: "1.0.0"
+input_type: "text"
+
+extraction:
+  schema_definition:
+    type: "object"
+    properties:
+      parties:
+        type: "array"
+        items:
+          type: "string"
+        description: "The main parties involved in the contract"
+      effective_date:
+        type: "string"
+        description: "The date the contract becomes effective (ISO format)"
+      total_amount:
+        type: "number"
+        description: "The total monetary amount mentioned, if any"
+      governing_law:
+        type: "string"
+        description: "The jurisdiction whose laws govern the contract"
+    required: ["parties", "effective_date"]
+
+  prompt_template: |
+    You are an expert legal AI assistant.
+    Extract the required information from the following contract text:
+    
+    {text}
+    
+    Output strictly valid JSON matching the schema.
+
+qa_rules:
+  - rule_type: "not_null"
+    field_name: "parties"
+  - rule_type: "llm_judge"
+    llm_prompt: |
+      Check if the extracted parties and effective date exactly match the provided contract text.
+      Identify any hallucinated parties or dates.
+      TEXT: {text}
+      JSON: {json}
+
+vectorization:
+  source_field: "raw_content"
+  embedding_model: "text-embedding-3-small"
+  collection_name: "legal_contracts"

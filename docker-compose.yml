@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  db:
+    image: ankane/pgvector:latest
+    environment:
+      POSTGRES_USER: dataforge
+      POSTGRES_PASSWORD: dataforgepassword
+      POSTGRES_DB: dataforgedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - CASSANDRA_PORT=9042
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    depends_on:
+      - db
+
+  api:
+    build: .
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://dataforge:dataforgepassword@db:5432/dataforgedb
+      - TEMPORAL_HOST=temporal:7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy}
+      - VLLM_API_BASE=${VLLM_API_BASE:-http://localhost:8000/v1}
+    depends_on:
+      - db
+      - temporal
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+
+  worker:
+    build: .
+    command: python -m src.worker
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://dataforge:dataforgepassword@db:5432/dataforgedb
+      - TEMPORAL_HOST=temporal:7233
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-dummy}
+      - VLLM_API_BASE=${VLLM_API_BASE:-http://localhost:8000/v1}
+    depends_on:
+      - db
+      - temporal
+    volumes:
+      - ./src:/app/src
+
+volumes:
+  db_data:
