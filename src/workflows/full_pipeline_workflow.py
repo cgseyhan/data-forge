@@ -10,12 +10,13 @@ with workflow.unsafe.imports_passed_through():
     from src.workflows.qa_workflow import QAWorkflow
     from src.workflows.vector_workflow import VectorWorkflow
     from src.activities.database import mark_record_failed_activity
+    from src.activities.webhook import send_webhook_activity
 
 
 @workflow.defn(name="FullPipelineWorkflow")
 class FullPipelineWorkflow:
     @workflow.run
-    async def run(self, source: str, config: PipelineConfig) -> dict:
+    async def run(self, source: str, config: PipelineConfig, tenant_id: str) -> dict:
         """
         DataForge genel AI veri pipeline orkestratörü.
 
@@ -34,7 +35,7 @@ class FullPipelineWorkflow:
         try:
             ingest_result = await workflow.execute_child_workflow(
                 IngestionWorkflow.run,
-                args=[source, config.input_type, config.name],
+                args=[source, config.input_type, config.name, tenant_id],
                 id=f"ingest-{workflow.info().workflow_id}",
                 retry_policy=child_retry,
             )
@@ -82,7 +83,7 @@ class FullPipelineWorkflow:
             try:
                 qa_result = await workflow.execute_child_workflow(
                     QAWorkflow.run,
-                    args=[record_id, raw_text, extracted_json, config.qa_rules],
+                    args=[record_id, raw_text, extracted_json, config.qa_rules, tenant_id],
                     id=f"qa-{workflow.info().workflow_id}",
                     retry_policy=child_retry,
                 )
@@ -109,7 +110,7 @@ class FullPipelineWorkflow:
         try:
             vector_result = await workflow.execute_child_workflow(
                 VectorWorkflow.run,
-                args=[record_id, content_hash, raw_text, extracted_json, config.vectorization],
+                args=[record_id, content_hash, raw_text, extracted_json, config.vectorization, tenant_id],
                 id=f"vector-{workflow.info().workflow_id}",
                 retry_policy=child_retry,
             )
@@ -121,9 +122,20 @@ class FullPipelineWorkflow:
             )
             return {"final_status": "FAILED", "record_id": record_id, "error": str(exc)}
 
-        return {
+        final_result = {
             "final_status": "VECTORIZED",
             "record_id": record_id,
             "source": source,
             "external_vector_id": vector_result["external_vector_id"],
         }
+        
+        # ── 5. Webhook (Callback) ─────────────────────────────────────────────
+        if config.webhook_url:
+            await workflow.execute_activity(
+                send_webhook_activity,
+                args=[config.webhook_url, final_result],
+                start_to_close_timeout=timedelta(minutes=1),
+                retry_policy=child_retry,
+            )
+
+        return final_result

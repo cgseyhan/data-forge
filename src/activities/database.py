@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 @activity.defn
-async def check_duplicate_activity(content_hash: str) -> Optional[str]:
+async def check_duplicate_activity(content_hash: str, tenant_id: str) -> Optional[str]:
     """
     Verilen content_hash ile DB'de eşleşen bir Record var mı kontrol eder.
 
@@ -35,10 +35,10 @@ async def check_duplicate_activity(content_hash: str) -> Optional[str]:
     """
     from sqlalchemy import select
 
-    activity.logger.info(f"Checking for duplicate with hash: {content_hash[:16]}...")
+    activity.logger.info(f"Checking for duplicate with hash: {content_hash[:16]} for tenant {tenant_id}...")
     async with get_session() as session:
         result = await session.execute(
-            select(Record.id).where(Record.content_hash == content_hash).limit(1)
+            select(Record.id).where(Record.content_hash == content_hash).where(Record.tenant_id == tenant_id).limit(1)
         )
         row = result.scalar_one_or_none()
         if row:
@@ -54,6 +54,7 @@ async def create_record_activity(
     raw_content: str,
     pipeline_name: str,
     input_type: str,
+    tenant_id: str,
 ) -> str:
     """
     Yeni bir Record satırı oluşturur ve ID'sini döndürür.
@@ -71,6 +72,7 @@ async def create_record_activity(
     record_id = str(uuid.uuid4())
     record = Record(
         id=record_id,
+        tenant_id=tenant_id,
         source_url=source if input_type == "url" else None,
         source_id=source if input_type != "url" else None,
         content_hash=content_hash,
@@ -113,7 +115,7 @@ async def update_record_status_activity(
 
         record.status = status
         if extra_fields:
-            allowed = {"raw_content", "extracted_json", "schema_version", "error_reason", "retry_count"}
+            allowed = {"raw_content", "extracted_json", "schema_version", "error_reason", "retry_count", "llm_tokens_used", "processing_time_ms"}
             for key, val in extra_fields.items():
                 if key in allowed:
                     setattr(record, key, val)
@@ -127,6 +129,7 @@ async def save_qa_result_activity(
     qa_type: str,
     status: str,
     score: float,
+    tenant_id: str,
     issues: Optional[List[Dict[str, Any]]] = None,
 ) -> str:
     """
@@ -146,6 +149,7 @@ async def save_qa_result_activity(
     qa_result = QAResult(
         id=qa_id,
         record_id=record_id,
+        tenant_id=tenant_id,
         qa_type=qa_type,
         status=status,
         score=score,
@@ -164,6 +168,7 @@ async def save_vector_meta_activity(
     collection_name: str,
     embedding_model: str,
     content_hash: str,
+    tenant_id: str,
     vector_backend: str = "pgvector",
 ) -> str:
     """
@@ -184,6 +189,7 @@ async def save_vector_meta_activity(
     meta = VectorMeta(
         id=meta_id,
         record_id=record_id,
+        tenant_id=tenant_id,
         vector_backend=vector_backend,
         collection_name=collection_name,
         external_vector_id=external_vector_id,

@@ -25,6 +25,7 @@ class PipelineConfig(BaseModel):
     extraction: Optional[ExtractionConfig] = None
     qa_rules: List[QARule] = Field(default_factory=list)
     vectorization: Optional[VectorizationConfig] = None
+    webhook_url: Optional[str] = Field(None, description="Optional webhook URL to POST results to upon completion")
 
     @classmethod
     def from_yaml(cls, file_path: str) -> "PipelineConfig":

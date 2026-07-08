@@ -21,6 +21,7 @@ class QAWorkflow:
         raw_content: str,
         extracted_json: Dict[str, Any],
         rules: List[QARule],
+        tenant_id: str = "",
     ) -> dict:
         retry_policy = RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=5))
         db_retry = RetryPolicy(maximum_attempts=5, initial_interval=timedelta(seconds=2))
@@ -56,6 +57,7 @@ class QAWorkflow:
                 "deterministic",
                 "PASSED" if det_result.get("passed", False) else "FAILED",
                 det_result.get("score", 0.0),
+                tenant_id,
                 det_result.get("issues", []),
             ],
             start_to_close_timeout=timedelta(seconds=15),
@@ -83,6 +85,7 @@ class QAWorkflow:
                         "llm_judge",
                         "PASSED" if llm_result.get("passed", False) else "FAILED",
                         llm_result.get("score", 0.0),
+                        tenant_id,
                         llm_result.get("issues", []),
                     ],
                     start_to_close_timeout=timedelta(seconds=15),

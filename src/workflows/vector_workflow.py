@@ -24,6 +24,7 @@ class VectorWorkflow:
         raw_content: str,
         extracted_json: Dict[str, Any],
         config: VectorizationConfig,
+        tenant_id: str = "",
     ) -> dict:
         retry_policy = RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=5))
         db_retry = RetryPolicy(maximum_attempts=5, initial_interval=timedelta(seconds=2))
@@ -38,7 +39,7 @@ class VectorWorkflow:
         # ── 2. Embed et ve vector DB'ye kaydet ───────────────────────────────
         external_id = await workflow.execute_activity(
             embed_and_store_activity,
-            args=[text_to_embed, config],
+            args=[text_to_embed, config, tenant_id],
             start_to_close_timeout=timedelta(minutes=2),
             retry_policy=retry_policy
         )
@@ -52,6 +53,7 @@ class VectorWorkflow:
                 config.collection_name,
                 config.embedding_model,
                 content_hash,
+                tenant_id,
             ],
             start_to_close_timeout=timedelta(seconds=15),
             retry_policy=db_retry

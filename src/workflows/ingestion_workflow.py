@@ -23,7 +23,7 @@ with workflow.unsafe.imports_passed_through():
 @workflow.defn(name="IngestionWorkflow")
 class IngestionWorkflow:
     @workflow.run
-    async def run(self, source: str, input_type: str = "url", pipeline_name: str = "default") -> dict:
+    async def run(self, source: str, input_type: str = "url", pipeline_name: str = "default", tenant_id: str = "") -> dict:
         retry_policy = RetryPolicy(
             maximum_attempts=3,
             initial_interval=timedelta(seconds=5),
@@ -73,7 +73,7 @@ class IngestionWorkflow:
         # ── 3. Duplicate kontrolü ────────────────────────────────────────────
         existing_record_id = await workflow.execute_activity(
             check_duplicate_activity,
-            content_hash,
+            args=[content_hash, tenant_id],
             start_to_close_timeout=timedelta(seconds=15),
             retry_policy=db_retry
         )
@@ -88,7 +88,7 @@ class IngestionWorkflow:
         # ── 4. Yeni Record oluştur ───────────────────────────────────────────
         record_id = await workflow.execute_activity(
             create_record_activity,
-            args=[source, content_hash, raw_text, pipeline_name, input_type],
+            args=[source, content_hash, raw_text, pipeline_name, input_type, tenant_id],
             start_to_close_timeout=timedelta(seconds=15),
             retry_policy=db_retry
         )

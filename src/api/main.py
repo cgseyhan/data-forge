@@ -2,13 +2,14 @@ import os
 import uuid
 import logging
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from temporalio.client import Client
 
 from src.schemas.pipeline_config import PipelineConfig
-from src.infrastructure.database.session import AsyncSessionLocal
-from src.infrastructure.database.models import Record
+from src.infrastructure.database.session import get_session
+from src.infrastructure.database.models import Record, Tenant
+from src.api.auth import get_current_tenant
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,8 +23,12 @@ class PipelineRequest(BaseModel):
 async def startup_event():
     logger.info("Starting up API...")
 
-@app.post("/pipelines/{config_name}/run")
-async def run_pipeline(config_name: str, request: PipelineRequest):
+@app.post("/api/v1/pipelines/{config_name}/run")
+async def run_pipeline(
+    config_name: str,
+    request: PipelineRequest,
+    tenant: Tenant = Depends(get_current_tenant)
+):
     """
     Triggers a new DataForge pipeline based on the specified config_name.
     """
@@ -45,7 +50,7 @@ async def run_pipeline(config_name: str, request: PipelineRequest):
         # start workflow asynchronously
         handle = await client.start_workflow(
             "FullPipelineWorkflow",
-            args=[request.source, config],
+            args=[request.source, config, tenant.id],
             id=workflow_id,
             task_queue="dataforge-task-queue",
         )
@@ -59,15 +64,17 @@ async def run_pipeline(config_name: str, request: PipelineRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error starting workflow: {str(e)}")
 
-@app.get("/records/{record_id}")
-async def get_record(record_id: str):
+@app.get("/api/v1/records/{record_id}")
+async def get_record(record_id: str, tenant: Tenant = Depends(get_current_tenant)):
     """
     Fetches the record data and status from the database.
     """
     from sqlalchemy import select
     
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(select(Record).where(Record.id == record_id))
+    async with get_session() as session:
+        result = await session.execute(
+            select(Record).where(Record.id == record_id, Record.tenant_id == tenant.id)
+        )
         record = result.scalars().first()
         
         if not record:
