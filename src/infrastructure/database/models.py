@@ -17,9 +17,52 @@ class Tenant(Base):
     company_name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
     
+    # SaaS / Billing fields
+    subscription_tier = Column(String, default="free")
+    stripe_customer_id = Column(String, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     
     records = relationship("Record", back_populates="tenant", cascade="all, delete-orphan")
+    users = relationship("User", back_populates="tenant", cascade="all, delete-orphan")
+    configs = relationship("PipelineConfigDB", back_populates="tenant", cascade="all, delete-orphan")
+
+class User(Base):
+    """
+    Dashboard User model.
+    """
+    __tablename__ = "users"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    tenant = relationship("Tenant", back_populates="users")
+
+class PipelineConfigDB(Base):
+    """
+    Database-backed Pipeline Configuration.
+    """
+    __tablename__ = "pipeline_configs"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, ForeignKey("tenants.id"), index=True, nullable=False)
+    
+    name = Column(String, index=True, nullable=False)
+    description = Column(String, nullable=True)
+    
+    config_json = Column(JSONB, nullable=False) # Stores the actual YAML/JSON config structure
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    tenant = relationship("Tenant", back_populates="configs")
 
 class Record(Base):
     """
