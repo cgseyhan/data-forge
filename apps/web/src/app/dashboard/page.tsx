@@ -6,6 +6,17 @@ import { fetchAPI } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface RecordItem {
   id: string;
@@ -19,6 +30,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isPipelineModalOpen, setIsPipelineModalOpen] = useState(false);
+  const [newPipelineConfig, setNewPipelineConfig] = useState("legal_contracts");
+  const [newPipelineSource, setNewPipelineSource] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -46,6 +61,30 @@ export default function DashboardPage() {
     loadData();
   }, [router]);
 
+  const handleCreatePipeline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPipelineConfig || !newPipelineSource) return;
+    
+    setIsSubmitting(true);
+    try {
+      await fetchAPI(`/pipelines/${newPipelineConfig}/run`, {
+        method: "POST",
+        body: JSON.stringify({ source: newPipelineSource }),
+      });
+      setIsPipelineModalOpen(false);
+      setNewPipelineSource("");
+      
+      // Refresh records
+      const data = await fetchAPI("/records");
+      setRecords(data);
+    } catch (err) {
+      console.error("Failed to start pipeline:", err);
+      alert("Failed to start pipeline. See console for details.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center">Loading dashboard...</div>;
   }
@@ -54,7 +93,52 @@ export default function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <Button>Create New Pipeline</Button>
+        <Dialog open={isPipelineModalOpen} onOpenChange={setIsPipelineModalOpen}>
+          <DialogTrigger asChild>
+            <Button>Create New Pipeline</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Run Pipeline</DialogTitle>
+              <DialogDescription>
+                Trigger a new ingestion and extraction pipeline run.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreatePipeline}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="config" className="text-right">
+                    Config Name
+                  </Label>
+                  <Input
+                    id="config"
+                    value={newPipelineConfig}
+                    onChange={(e) => setNewPipelineConfig(e.target.value)}
+                    className="col-span-3"
+                    placeholder="e.g. legal_contracts"
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="source" className="text-right">
+                    Source
+                  </Label>
+                  <Input
+                    id="source"
+                    value={newPipelineSource}
+                    onChange={(e) => setNewPipelineSource(e.target.value)}
+                    className="col-span-3"
+                    placeholder="URL or raw text"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Starting..." : "Run Pipeline"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -105,7 +189,11 @@ export default function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {records.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow 
+                    key={r.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => router.push(`/dashboard/records/${r.id}`)}
+                  >
                     <TableCell className="font-medium text-xs">{r.id.split('-')[0]}...</TableCell>
                     <TableCell className="truncate max-w-[200px]">{r.source}</TableCell>
                     <TableCell>{r.pipeline_name}</TableCell>
