@@ -94,8 +94,8 @@ export default function DashboardPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <Dialog open={isPipelineModalOpen} onOpenChange={setIsPipelineModalOpen}>
-          <DialogTrigger asChild>
-            <Button>Create New Pipeline</Button>
+          <DialogTrigger render={<Button />}>
+            Create New Pipeline
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
