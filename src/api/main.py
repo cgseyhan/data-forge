@@ -11,7 +11,7 @@ from src.schemas.pipeline_config import PipelineConfig
 from src.infrastructure.database.session import get_session
 from src.infrastructure.database.models import Record, Tenant, User
 from src.api.auth import get_current_tenant, get_current_user
-from src.api.routers import users, configs
+from src.api.routers import users, configs, analytics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ app.add_middleware(
 # Include routers
 app.include_router(users.router)
 app.include_router(configs.router)
+app.include_router(analytics.router)
 
 class PipelineRequest(BaseModel):
     source: str

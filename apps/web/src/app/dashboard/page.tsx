@@ -29,6 +29,7 @@ interface RecordItem {
 export default function DashboardPage() {
   const router = useRouter();
   const [records, setRecords] = useState<RecordItem[]>([]);
+  const [analytics, setAnalytics] = useState({ total_pipelines: 0, records_processed: 0, llm_tokens_used: 0 });
   const [loading, setLoading] = useState(true);
   const [isPipelineModalOpen, setIsPipelineModalOpen] = useState(false);
   const [newPipelineConfig, setNewPipelineConfig] = useState("legal_contracts");
@@ -44,10 +45,14 @@ export default function DashboardPage() {
 
     const loadData = async () => {
       try {
-        const data = await fetchAPI("/records");
-        setRecords(data);
+        const [recordsData, analyticsData] = await Promise.all([
+          fetchAPI("/records"),
+          fetchAPI("/analytics/summary")
+        ]);
+        setRecords(recordsData);
+        setAnalytics(analyticsData);
       } catch (err) {
-        console.error("Failed to load records:", err);
+        console.error("Failed to load data:", err);
         // If unauthorized, redirect to login
         if (err instanceof Error && err.message === "Could not validate credentials") {
           localStorage.removeItem("token");
@@ -74,9 +79,13 @@ export default function DashboardPage() {
       setIsPipelineModalOpen(false);
       setNewPipelineSource("");
       
-      // Refresh records
-      const data = await fetchAPI("/records");
-      setRecords(data);
+      // Refresh data
+      const [recordsData, analyticsData] = await Promise.all([
+        fetchAPI("/records"),
+        fetchAPI("/analytics/summary")
+      ]);
+      setRecords(recordsData);
+      setAnalytics(analyticsData);
     } catch (err) {
       console.error("Failed to start pipeline:", err);
       alert("Failed to start pipeline. See console for details.");
@@ -147,7 +156,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Pipelines</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1</div>
+            <div className="text-2xl font-bold">{analytics.total_pipelines}</div>
           </CardContent>
         </Card>
         <Card>
@@ -155,7 +164,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Records Processed</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{records.length}</div>
+            <div className="text-2xl font-bold">{analytics.records_processed}</div>
           </CardContent>
         </Card>
         <Card>
@@ -163,7 +172,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium text-muted-foreground">LLM Tokens Used</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{analytics.llm_tokens_used}</div>
           </CardContent>
         </Card>
       </div>
