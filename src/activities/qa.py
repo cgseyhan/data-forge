@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import re
 from typing import Dict, Any, List
 from temporalio import activity
 from openai import AsyncOpenAI
@@ -20,10 +21,9 @@ async def run_deterministic_qa_activity(extracted_data: Dict[str, Any], rules: L
                 issues.append({"field": rule.field_name, "error": "Cannot be null or empty"})
         
         elif rule.rule_type == "regex" and rule.field_name and rule.params:
-            import re
             val = extracted_data.get(rule.field_name, "")
             pattern = rule.params.get("pattern", "")
-            if not re.match(pattern, str(val)):
+            if not re.search(pattern, str(val)):
                 issues.append({"field": rule.field_name, "error": f"Does not match pattern {pattern}"})
                 
     passed = len(issues) == 0

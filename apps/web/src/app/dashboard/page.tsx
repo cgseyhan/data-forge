@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchAPI } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Settings2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -35,6 +36,7 @@ export default function DashboardPage() {
   const [newPipelineConfig, setNewPipelineConfig] = useState("legal_contracts");
   const [newPipelineSource, setNewPipelineSource] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [configs, setConfigs] = useState<any[]>([]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -45,12 +47,14 @@ export default function DashboardPage() {
 
     const loadData = async () => {
       try {
-        const [recordsData, analyticsData] = await Promise.all([
+        const [recordsData, analyticsData, configsData] = await Promise.all([
           fetchAPI("/records"),
-          fetchAPI("/analytics/summary")
+          fetchAPI("/analytics/summary"),
+          fetchAPI("/configs").catch(() => []) // Fallback if configs fail
         ]);
         setRecords(recordsData);
         setAnalytics(analyticsData);
+        setConfigs(configsData);
       } catch (err) {
         console.error("Failed to load data:", err);
         // If unauthorized, redirect to login
@@ -102,10 +106,14 @@ export default function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <Dialog open={isPipelineModalOpen} onOpenChange={setIsPipelineModalOpen}>
-          <DialogTrigger render={<Button />}>
-            Create New Pipeline
-          </DialogTrigger>
+        <div className="flex space-x-2">
+          <Button variant="outline" onClick={() => router.push("/dashboard/configs")}>
+            <Settings2 className="mr-2 h-4 w-4" /> Manage Configs
+          </Button>
+          <Dialog open={isPipelineModalOpen} onOpenChange={setIsPipelineModalOpen}>
+            <DialogTrigger asChild>
+              <Button>Run Pipeline</Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Run Pipeline</DialogTitle>
@@ -119,13 +127,20 @@ export default function DashboardPage() {
                   <Label htmlFor="config" className="text-right">
                     Config Name
                   </Label>
-                  <Input
+                  <select
                     id="config"
                     value={newPipelineConfig}
                     onChange={(e) => setNewPipelineConfig(e.target.value)}
-                    className="col-span-3"
-                    placeholder="e.g. legal_contracts"
-                  />
+                    className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value="" disabled>Select a config...</option>
+                    <option value="legal_contracts">legal_contracts (YAML)</option>
+                    <option value="ecommerce_products">ecommerce_products (YAML)</option>
+                    {configs.map(c => (
+                      <option key={c.id} value={c.name}>{c.name} (DB)</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="source" className="text-right">

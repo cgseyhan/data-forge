@@ -9,7 +9,9 @@ from temporalio.client import Client
 
 from src.schemas.pipeline_config import PipelineConfig
 from src.infrastructure.database.session import get_session
-from src.infrastructure.database.models import Record, Tenant, User
+from src.infrastructure.database.models import Record, Tenant, User, PipelineConfigDB
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from src.api.auth import get_current_tenant, get_current_user
 from src.api.routers import users, configs, analytics
 
@@ -47,14 +49,30 @@ async def run_pipeline(
     """
     Triggers a new DataForge pipeline based on the specified config_name.
     """
-    config_path = Path("src/configs") / f"{config_name}.yaml"
-    if not config_path.exists():
-        raise HTTPException(status_code=404, detail=f"Configuration '{config_name}.yaml' not found.")
     
-    try:
-        config = PipelineConfig.from_yaml(str(config_path))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error parsing YAML: {str(e)}")
+    async with get_session() as session:
+        result = await session.execute(
+            select(PipelineConfigDB).where(
+                PipelineConfigDB.name == config_name,
+                PipelineConfigDB.tenant_id == tenant.id
+            )
+        )
+        db_config = result.scalar_one_or_none()
+        
+    if db_config:
+        try:
+            config = PipelineConfig(**db_config.config_json)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error parsing DB config: {str(e)}")
+    else:
+        config_path = Path("src/configs") / f"{config_name}.yaml"
+        if not config_path.exists():
+            raise HTTPException(status_code=404, detail=f"Configuration '{config_name}' not found in DB or YAML.")
+        
+        try:
+            config = PipelineConfig.from_yaml(str(config_path))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error parsing YAML: {str(e)}")
 
     try:
         client = await Client.connect(os.getenv("TEMPORAL_HOST", "localhost:7233"))
@@ -84,11 +102,12 @@ async def get_record(record_id: str, tenant: Tenant = Depends(get_current_tenant
     """
     Fetches the record data and status from the database.
     """
-    from sqlalchemy import select
     
     async with get_session() as session:
         result = await session.execute(
-            select(Record).where(Record.id == record_id, Record.tenant_id == tenant.id)
+            select(Record)
+            .options(selectinload(Record.qa_results), selectinload(Record.vector_metas))
+            .where(Record.id == record_id, Record.tenant_id == tenant.id)
         )
         record = result.scalars().first()
         
@@ -97,13 +116,28 @@ async def get_record(record_id: str, tenant: Tenant = Depends(get_current_tenant
             
         return {
             "id": record.id,
-            "source": record.source,
+            "source": record.source_url or record.source_id,
             "pipeline_name": record.pipeline_name,
             "status": record.status,
             "raw_content_preview": record.raw_content[:200] + "..." if record.raw_content else None,
-            "extracted_data": record.extracted_data,
+            "extracted_data": record.extracted_json,
             "created_at": record.created_at,
-            "updated_at": record.updated_at
+            "updated_at": record.updated_at,
+            "qa_results": [
+                {
+                    "qa_type": qa.qa_type,
+                    "status": qa.status,
+                    "score": qa.score,
+                    "issues_json": qa.issues_json
+                } for qa in record.qa_results
+            ],
+            "vector_metas": [
+                {
+                    "vector_backend": vm.vector_backend,
+                    "collection_name": vm.collection_name,
+                    "embedding_model": vm.embedding_model,
+                } for vm in record.vector_metas
+            ]
         }
 
 @app.get("/api/v1/records")
@@ -111,7 +145,6 @@ async def list_records(current_user: User = Depends(get_current_user)):
     """
     Fetches the list of records for the dashboard.
     """
-    from sqlalchemy import select
     
     async with get_session() as session:
         result = await session.execute(

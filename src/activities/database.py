@@ -20,6 +20,7 @@ from temporalio import activity
 
 from src.infrastructure.database.session import get_session
 from src.infrastructure.database.models import Record, QAResult, VectorMeta
+from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,6 @@ async def check_duplicate_activity(content_hash: str, tenant_id: str) -> Optiona
         Mevcut record'un ID'si — duplicate ise.
         None — yeni kayıt oluşturulabilir.
     """
-    from sqlalchemy import select
 
     activity.logger.info(f"Checking for duplicate with hash: {content_hash[:16]} for tenant {tenant_id}...")
     async with get_session() as session:
@@ -102,7 +102,6 @@ async def update_record_status_activity(
                       Desteklenen anahtarlar: raw_content, extracted_json,
                       schema_version, error_reason, retry_count.
     """
-    from sqlalchemy import select
 
     activity.logger.info(f"Updating record {record_id} → status={status}")
     async with get_session() as session:
@@ -211,7 +210,6 @@ async def mark_record_failed_activity(record_id: str, error_reason: str) -> None
         record_id   : Hata alan Record ID'si.
         error_reason: Hata açıklaması (exception message, vs.).
     """
-    from sqlalchemy import select
 
     activity.logger.error(f"Marking record {record_id} as FAILED: {error_reason[:200]}")
     async with get_session() as session:

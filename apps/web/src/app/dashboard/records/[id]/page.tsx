@@ -5,7 +5,20 @@ import { useParams, useRouter } from "next/navigation";
 import { fetchAPI } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, AlertCircle, Database } from "lucide-react";
+
+interface QAResult {
+  qa_type: string;
+  status: string;
+  score: number;
+  issues_json: any;
+}
+
+interface VectorMeta {
+  vector_backend: string;
+  collection_name: string;
+  embedding_model: string;
+}
 
 interface RecordDetail {
   id: string;
@@ -16,6 +29,8 @@ interface RecordDetail {
   extracted_data: any;
   created_at: string;
   updated_at: string;
+  qa_results: QAResult[];
+  vector_metas: VectorMeta[];
 }
 
 export default function RecordDetailPage() {
@@ -115,6 +130,85 @@ export default function RecordDetailPage() {
                 </pre>
               ) : (
                 <div className="text-muted-foreground text-sm italic">No data extracted yet.</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* QA Results Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Quality Assurance (QA) Results</CardTitle>
+              <CardDescription>Automated rule and LLM judge validations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {record.qa_results && record.qa_results.length > 0 ? (
+                <div className="space-y-4">
+                  {record.qa_results.map((qa, idx) => (
+                    <div key={idx} className="flex flex-col space-y-2 p-4 border rounded-md">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          {qa.status === 'PASSED' ? (
+                            <CheckCircle className="text-green-500 h-5 w-5" />
+                          ) : qa.status === 'FAILED' ? (
+                            <XCircle className="text-red-500 h-5 w-5" />
+                          ) : (
+                            <AlertCircle className="text-yellow-500 h-5 w-5" />
+                          )}
+                          <span className="font-semibold capitalize">{qa.qa_type.replace('_', ' ')}</span>
+                        </div>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-md ${
+                          qa.status === 'PASSED' ? 'bg-green-100 text-green-800' :
+                          qa.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {qa.status}
+                        </span>
+                      </div>
+                      
+                      {qa.issues_json && Object.keys(qa.issues_json).length > 0 && (
+                        <div className="mt-2 bg-red-50 text-red-800 p-3 rounded-md text-sm border border-red-100">
+                          <span className="font-semibold block mb-1">Issues:</span>
+                          <pre className="whitespace-pre-wrap">{JSON.stringify(qa.issues_json, null, 2)}</pre>
+                        </div>
+                      )}
+                      {qa.score > 0 && (
+                        <div className="text-sm text-muted-foreground">Score: {qa.score}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-muted-foreground text-sm italic">No QA rules executed for this record.</div>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Vector DB Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Vectorization Status</CardTitle>
+              <CardDescription>Synchronization with vector databases</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {record.vector_metas && record.vector_metas.length > 0 ? (
+                <div className="space-y-4">
+                  {record.vector_metas.map((vm, idx) => (
+                    <div key={idx} className="flex items-center p-4 border rounded-md justify-between bg-muted/20">
+                      <div className="flex items-center space-x-3">
+                        <Database className="h-5 w-5 text-blue-500" />
+                        <div>
+                          <span className="font-semibold block">{vm.vector_backend}</span>
+                          <span className="text-xs text-muted-foreground block">Collection: {vm.collection_name}</span>
+                        </div>
+                      </div>
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-md font-semibold">
+                        Model: {vm.embedding_model}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-muted-foreground text-sm italic">Record has not been vectorized yet.</div>
               )}
             </CardContent>
           </Card>

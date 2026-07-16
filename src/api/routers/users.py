@@ -1,4 +1,5 @@
 from datetime import timedelta
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.future import select
@@ -42,8 +43,6 @@ async def register_user(user_in: UserCreate):
         result = await session.execute(select(User).where(User.email == user_in.email))
         if result.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Email already registered")
-        
-        import uuid
         
         # Create a Tenant for this new user
         # In a real SaaS, maybe you invite users to existing tenants, but for now we create a tenant per new sign up
